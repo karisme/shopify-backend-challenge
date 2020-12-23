@@ -1,0 +1,23 @@
+{
+  "name": "shopify_proj",
+  "version": "1.0.0",
+  "description": "Shopify Challenge Endpoint",
+  "engines": {
+    "node": ">= 14 < 15"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "5.0.4",
+    "@types/node": "12.12.6",
+    "@types/restify": "^2.0.X",
+    "fs-extra": "7.0.0",
+    "restify": "^4.3.X",
+    "ts-node": "4.1.0",
+    "typescript": "3.7.4"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node src/App.js"
+  },
+  "author": "Ali Ka",
+  "license": "ISC"
+}
