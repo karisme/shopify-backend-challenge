@@ -1,7 +1,3 @@
-/**
- * Created by rtholmes on 2016-06-19.
- */
-
 import fs = require("fs-extra");
 import restify = require("restify");
 import Log from "./Util";
@@ -76,12 +72,6 @@ export default class Server {
                 //     Server.performQuery(that.insightFacade, req, res, next);
                 // });
 
-                // that.rest.del("/dataset/:id", (req: restify.Request, res: restify.Response, next: restify.Next) => {
-                //   //  Server.removeDataset(that.insightFacade, req, res, next);
-                // });
-                // // This must be the last endpoint!
-                // that.rest.get("/.*", Server.getStatic);
-
                 that.rest.listen(that.port, function () {
                     Log.info("Server::start() - restify listening: " + that.rest.url);
                     fulfill(true);
@@ -100,9 +90,6 @@ export default class Server {
         });
     }
 
-    // The next two methods handle the echo service.
-    // These are almost certainly not the best place to put these, but are here for your reference.
-    // By updating the Server.echo function pointer above, these methods can be easily moved.
     private static echo(req: restify.Request, res: restify.Response, next: restify.Next) {
         Log.trace("Server::echo(..) - params: " + JSON.stringify(req.params));
         try {
@@ -123,19 +110,6 @@ export default class Server {
             return "Message not provided";
         }
     }
-
-    // private static addDataset(insightFacade: InsightFacade, req: restify.Request,
-    //                           res: restify.Response, next: restify.Next) {
-    //     Log.trace("Server::PUT dataset");
-    //     const datasetBase64 = req.body.toString("base64");
-    //     insightFacade.addDataset(req.params.id, datasetBase64, req.params.kind).then((datasets: string[]) => {
-    //         res.json(200, { result: datasets });
-    //         return next();
-    //     }).catch((err) => {
-    //         res.json(400, { error: err.message });
-    //         return next();
-    //     });
-    // }
 
     // private static performQuery(insightFacade: InsightFacade, req: restify.Request,
     //                             res: restify.Response, next: restify.Next) {
