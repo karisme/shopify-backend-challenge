@@ -1,7 +1,7 @@
 /*
  * Interface for ImageHandler Class, decided to seperate the logic
  * in it's own class in case I decided to add more to the image processing/storage logic
- * (ideas include using ML library to generate tags), or different types of searches (by order).
+ * (ideas include using ML library to generate tags), or different types of searches (by date/user/tags).
  */
 
  export interface ImageData {

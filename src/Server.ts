@@ -1,13 +1,20 @@
 import fs = require("fs-extra");
 import restify = require("restify");
 import Log from "./Util";
+import jwtConfig from "../config.json"
+import jwt = require('jsonwebtoken');
+import restJWT = require('restify-jwt-community');
+
 
 /**
  * This configures the REST endpoints for the server.
- * Use POST to create new user
- * Use POST to login, returns Oath key
- * Use GET for search
- * Use PUT to upload pics
+ * Use POST to login, returns JWT token that has user metadata 
+ *        (fetches from db theoretically, using dummy data for now) -> Not implemented 
+ * 
+ * https://medium.com/sean3z/json-web-tokens-jwt-with-restify-bfe5c4907e3c
+ * Use GET for search, pass JWT token -> will return the URLs from S3
+ * Use GET[id] get specific pic
+ * Use PUT to upload pics, pass JWT token -> get userID from JWT and generate tags using ML API return picID
  */
 export default class Server {
 
@@ -48,7 +55,11 @@ export default class Server {
                 that.rest = restify.createServer({
                     name: "ImageRepo",
                 });
-                that.rest.use(restify.bodyParser({mapFiles: true, mapParams: true}));
+                that.rest.use(restify.plugins.bodyParser({mapFiles: true, mapParams: true}));
+                that.rest.use(restify.plugins.queryParser());
+                that.rest.use(restJWT(jwtConfig.jwt).unless({
+                    path: ['/login', '/echo/:msg']
+                }))
                 that.rest.use(
                     function crossOrigin(req, res, next) {
                         res.header("Access-Control-Allow-Origin", "*");
@@ -58,6 +69,17 @@ export default class Server {
                 // Test endpoint
                 // http://localhost:1234/echo/hello
                 that.rest.get("/echo/:msg", Server.echo);
+                that.rest.get("/test", (req: restify.Request, res: restify.Response, next: restify.Next) => {
+                    console.log("HEE");
+                    res.send(200);
+                    return next();
+                });
+
+                // the bearer token returned from this endpoint must be used in Authorization header for all other endpoints
+                // valid for 10minutes
+                that.rest.post("/login" , (req: restify.Request, res: restify.Response, next: restify.Next) => {
+                    Server.authenticate(req, res, next);
+                })
 
                 // that.rest.put("/dataset/:id/:kind",
                 //     (req: restify.Request, res: restify.Response, next: restify.Next) => {
@@ -103,6 +125,28 @@ export default class Server {
         return next();
     }
 
+    // if I were to implement this, function would make the call to some db store retrieve credentials, check if valid etc...
+    // simulating uniqueIDs by incrementin
+    private static authenticate(req: restify.Request, res: restify.Response, next: restify.Next) {
+        // normally req.body would have username + password but since I am mocking db validation
+        // checking if username already exists + password is not relevant
+        const { username, admin } = req.body;
+        if (username === null || username === undefined || username.length > 15) {
+            res.json(400, "Username entered invalid")
+        }
+        
+        // using Date.now() for unique IDs, this may need to change if this is implemented on a
+        // that runs a multithreaded system with several thousand operations in the ssame millisecond.
+        // inspired by: https://stackoverflow.com/questions/8012002/create-a-unique-number-with-javascript-time
+        const uniqueID = Date.now() + Math.floor(Math.random() * 100);
+        const data = { userID: uniqueID, name: username, admin: admin }
+        const token: any = jwt.sign(data, jwtConfig.jwt.secret, {
+            expiresIn: "10m"
+        });
+        res.json(200, { authToken: token });
+        return next();
+    }
+
     private static performEcho(msg: string): string {
         if (typeof msg !== "undefined" && msg !== null) {
             return `${msg}...${msg}`;
@@ -110,25 +154,4 @@ export default class Server {
             return "Message not provided";
         }
     }
-
-    // private static performQuery(insightFacade: InsightFacade, req: restify.Request,
-    //                             res: restify.Response, next: restify.Next) {
-    //     Log.trace("Server::POST query");
-    //     insightFacade.performQuery(req.body).then((queryResult: any[]) => {
-    //         res.json(200, { result: queryResult });
-    //         return next();
-    //     }).catch((err) => {
-    //         res.json(400, { error: err.message });
-    //         return next();
-    //     });
-    // }
-
-    // private static listDataset(insightFacade: InsightFacade, res: restify.Response, next: restify.Next) {
-    //     Log.trace("Server::GET datasets");
-    //     insightFacade.listDatasets().then((datasets: InsightDataset[]) => {
-    //         res.json(200, { result: datasets });
-    //         return next();
-    //     });
-    // }
-
 }
