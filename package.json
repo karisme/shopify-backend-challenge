@@ -16,7 +16,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "start": "node buildscript.js && node src/App.js"
+    "start": "yarn build && node buildscript.js && node src/App.js"
   },
   "author": "Ali Ka",
   "license": "MIT",

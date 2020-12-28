@@ -1,12 +1,14 @@
 import fs = require("fs-extra");
 import restify = require("restify");
 import Log from "./Util";
+
 import jwtConfig from "../config.json"
 import jwt = require('jsonwebtoken');
 import restJWT = require('restify-jwt-community');
+import ImageHandler from "./ImageProcessor/ImageHandler";
 
 
-/**
+/*
  * This configures the REST endpoints for the server.
  * Use POST to login, returns JWT token that has user metadata 
  *        (fetches from db theoretically, using dummy data for now) -> Not implemented 
@@ -20,6 +22,8 @@ export default class Server {
 
     private port: number;
     private rest: restify.Server;
+    private imageHandler: ImageHandler;
+    private usernameSet: Set<string> = new Set();
 
     constructor(port: number) {
         Log.info("Server::<init>( " + port + " )");
@@ -49,17 +53,19 @@ export default class Server {
      */
     public start(): Promise<boolean> {
         const that = this;
+        this.imageHandler = new ImageHandler();
         return new Promise(function (fulfill, reject) {
             try {
                 Log.info("Server::start() - start");
+                // populate Set with ids from S3 if this was not just being mocked
                 that.rest = restify.createServer({
                     name: "ImageRepo",
                 });
-                that.rest.use(restify.plugins.bodyParser({mapFiles: true, mapParams: true}));
-                that.rest.use(restify.plugins.queryParser());
+                // default maxSize is 10mb
+                that.rest.use(restify.plugins.bodyParser());
                 that.rest.use(restJWT(jwtConfig.jwt).unless({
                     path: ['/login', '/echo/:msg']
-                }))
+                }));
                 that.rest.use(
                     function crossOrigin(req, res, next) {
                         res.header("Access-Control-Allow-Origin", "*");
@@ -76,23 +82,20 @@ export default class Server {
                 });
 
                 // the bearer token returned from this endpoint must be used in Authorization header for all other endpoints
-                // valid for 10minutes
+                // valid for 10 minutes
                 that.rest.post("/login" , (req: restify.Request, res: restify.Response, next: restify.Next) => {
-                    Server.authenticate(req, res, next);
-                })
+                    Server.authenticate(req, res, next, that.usernameSet);
+                });
 
-                // that.rest.put("/dataset/:id/:kind",
-                //     (req: restify.Request, res: restify.Response, next: restify.Next) => {
-                //     Server.addDataset(that.insightFacade, req, res, next);
-                // });
+                that.rest.post("/image",
+                    (req: restify.Request, res: restify.Response, next: restify.Next) => {
+                    Server.uploadImage(req, res, next, that.imageHandler);
+                });
 
-                // that.rest.get("/datasets", (req: restify.Request, res: restify.Response, next: restify.Next) => {
-                //     Server.listDataset(that.insightFacade, res, next);
-                // });
-
-                // that.rest.post("/query", (req: restify.Request, res: restify.Response, next: restify.Next) => {
-                //     Server.performQuery(that.insightFacade, req, res, next);
-                // });
+                that.rest.post("/imageTags",
+                (req: restify.Request, res: restify.Response, next: restify.Next) => {
+                Server.fetchTags(req, res, next);
+            });
 
                 that.rest.listen(that.port, function () {
                     Log.info("Server::start() - restify listening: " + that.rest.url);
@@ -125,26 +128,81 @@ export default class Server {
         return next();
     }
 
-    // if I were to implement this, function would make the call to some db store retrieve credentials, check if valid etc...
-    // simulating uniqueIDs by incrementin
-    private static authenticate(req: restify.Request, res: restify.Response, next: restify.Next) {
+    // if I were to implement this pratically, function would make the call to some 
+    // databse, retrieve credentials, check if valid etc...
+    private static authenticate(req: restify.Request, res: restify.Response, next: restify.Next, usernameSet: Set<String>) {
         // normally req.body would have username + password but since I am mocking db validation
-        // checking if username already exists + password is not relevant
+        // using simple Set to check for uniqueness of username (not the most secure but this is just mock), password irrelevant
         const { username, admin } = req.body;
-        if (username === null || username === undefined || username.length > 15) {
+        console.log(usernameSet.has(username))
+        if (username === null || username === undefined || username.length > 15 || usernameSet.has(username)) {
             res.json(400, "Username entered invalid")
-        }
-        
-        // using Date.now() for unique IDs, this may need to change if this is implemented on a
-        // that runs a multithreaded system with several thousand operations in the ssame millisecond.
-        // inspired by: https://stackoverflow.com/questions/8012002/create-a-unique-number-with-javascript-time
-        const uniqueID = Date.now() + Math.floor(Math.random() * 100);
-        const data = { userID: uniqueID, name: username, admin: admin }
-        const token: any = jwt.sign(data, jwtConfig.jwt.secret, {
-            expiresIn: "10m"
-        });
-        res.json(200, { authToken: token });
+        } else {
+            // using Date.now() for unique IDs, this may need to change if this is implemented on a
+            // that runs a multithreaded system with several thousand operations in the same millisecond.
+            // inspired by: https://stackoverflow.com/questions/8012002/create-a-unique-number-with-javascript-time
+            const uniqueID = Date.now();
+            const data = { userID: uniqueID, name: username, admin: admin }
+            const token: any = jwt.sign(data, jwtConfig.jwt.secret, {
+                expiresIn: "10m"
+            });
+            usernameSet.add(username);
+            Log.info(`Server::authenticate - Authenticated user: ${username}`);
+            res.json(200, { authToken: token });
+    }
         return next();
+    }
+
+    private static fetchTags(req: restify.Request, res: restify.Response, next: restify.Next): string[] {
+        return [];
+    }
+
+
+    // A lot of these checks should be done at the UI level, but reinforcing here in case it isn't.
+    private static dataValidation(req: restify.Request): any {
+        const errorJSON: any = {
+            code: null,
+            error: null
+        };
+        if (req.getContentLength() > 15000000) {
+            errorJSON.code = 400;
+            errorJSON.error = "File size greater than 15mb";
+        } else if (!req.is("multipart/form-data")) {
+            errorJSON.code = 400;
+            errorJSON.error = "Content-Type must be multipart/form-data";
+        } else if (req.files.image === undefined) {
+            errorJSON.code = 400;
+            errorJSON.error = "Image not found in form data";
+        } else if (req.body.tags !== undefined && req.body.tags.length > 3) {
+            errorJSON.code = 400;
+            errorJSON.error = "Maximum of 3 tags allowed per picture"
+        } else {
+            const image = req.files.image;
+            if (!image.type.includes("image/")) {
+                errorJSON.code = 400;
+                errorJSON.error = "Only images are supported";
+            }
+        }
+        return errorJSON;
+    }
+
+    private static uploadImage(req: restify.Request, res: restify.Response, next: restify.Next, imageHandler: ImageHandler) {
+        // Do type checks, multiform validation before sending of to ImageHandler.
+        // when function returns res.send(uuid) of pic,
+        const errorJSON = Server.dataValidation(req);
+        if (errorJSON.code !== null) {
+            res.json(errorJSON.code, {error: errorJSON.error});
+            return next();
+        } else {
+            const tags: any = req.body.tags !== undefined ? req.body.tags.split(',') : ["child", "dog", "happy"];
+            return imageHandler.addImage(req.files.image, tags).then((uuid: string) => {
+                res.json(200, {imageID: uuid});
+                return next();
+            }).catch((err: any) => {
+                res.json(400, {err: err});
+                return next();
+            })
+        }
     }
 
     private static performEcho(msg: string): string {

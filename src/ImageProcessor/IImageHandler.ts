@@ -9,13 +9,22 @@
     user: number;
     date: Date;
     tags: string[];
-    data: string;
+    imageURL: string;
  }
 
  export interface IImageHandler {
-     // prolly an id, auto-gen Date tags?, data, userID, 
-     addImage(): Promise<string>;
+     /**
+      * 
+      * @param image 
+      * @param tags 
+      * @param userID
+      * 
+      * Goal is to upload image to S3 using user info to enable quick retrieval
+      */
+     addImage(image: any, tags: string[]): Promise<string>;
 
      // admin vs non admin (your own pics vs all pics)
      searchImages(): Promise<ImageData[]>;
+
+     searchImage(id: string) : Promise<ImageData>;
  }
