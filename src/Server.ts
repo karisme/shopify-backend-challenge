@@ -57,7 +57,7 @@ export default class Server {
         return new Promise(function (fulfill, reject) {
             try {
                 Log.info("Server::start() - start");
-                // populate Set with ids from S3 if this was not just being mocked
+                // populate Set with ids from database if this was not just being mocked
                 that.rest = restify.createServer({
                     name: "ImageRepo",
                 });
@@ -129,17 +129,16 @@ export default class Server {
     }
 
     // if I were to implement this pratically, function would make the call to some 
-    // databse, retrieve credentials, check if valid etc...
+    // database, retrieve credentials, check if valid etc...
+    // The JWT needs to be stored inside an httpOnly cookie should not be accessible
+    //  from JavaScript running in the browser, will look into encryption as well.
+    // https://blog.logrocket.com/jwt-authentication-best-practices/
     private static authenticate(req: restify.Request, res: restify.Response, next: restify.Next, usernameSet: Set<String>) {
-        // normally req.body would have username + password but since I am mocking db validation
-        // using simple Set to check for uniqueness of username (not the most secure but this is just mock), password irrelevant
         const { username, admin } = req.body;
-        console.log(usernameSet.has(username))
         if (username === null || username === undefined || username.length > 15 || usernameSet.has(username)) {
             res.json(400, "Username entered invalid")
         } else {
-            // using Date.now() for unique IDs, this may need to change if this is implemented on a
-            // that runs a multithreaded system with several thousand operations in the same millisecond.
+            // using Date.now()
             // inspired by: https://stackoverflow.com/questions/8012002/create-a-unique-number-with-javascript-time
             const uniqueID = Date.now();
             const data = { userID: uniqueID, name: username, admin: admin }
@@ -170,10 +169,10 @@ export default class Server {
         } else if (!req.is("multipart/form-data")) {
             errorJSON.code = 400;
             errorJSON.error = "Content-Type must be multipart/form-data";
-        } else if (req.files.image === undefined) {
+        } else if (req.files === undefined || req.files.image === undefined) {
             errorJSON.code = 400;
             errorJSON.error = "Image not found in form data";
-        } else if (req.body.tags !== undefined && req.body.tags.length > 3) {
+        } else if (req.body.tags !== undefined && req.body.tags.split(',').length > 3) {
             errorJSON.code = 400;
             errorJSON.error = "Maximum of 3 tags allowed per picture"
         } else {
@@ -188,14 +187,23 @@ export default class Server {
 
     private static uploadImage(req: restify.Request, res: restify.Response, next: restify.Next, imageHandler: ImageHandler) {
         // Do type checks, multiform validation before sending of to ImageHandler.
-        // when function returns res.send(uuid) of pic,
+        // when function returns res.send(uuid) of picID,
         const errorJSON = Server.dataValidation(req);
         if (errorJSON.code !== null) {
             res.json(errorJSON.code, {error: errorJSON.error});
             return next();
         } else {
             const tags: any = req.body.tags !== undefined ? req.body.tags.split(',') : ["child", "dog", "happy"];
-            return imageHandler.addImage(req.files.image, tags).then((uuid: string) => {
+            // found from https://stackoverflow.com/questions/190852/how-can-i-get-file-extensions-with-javascript. handles edge cases well
+            let fileExt: string = req.files.image.type;
+            fileExt = "." + fileExt.substring(fileExt.lastIndexOf('/')+1, fileExt.length) || fileExt;
+            const token: string = req.header('Authorization').split(' ')[1];
+            const userInfo: any = jwt.decode(token);
+            const userID: any = userInfo.userID;
+            Log.info(`Server::Upload Image Request from user:`);
+            Log.trace(userInfo);
+
+            return imageHandler.addImage(userID, req.files.image.path, fileExt, tags).then((uuid: string) => {
                 res.json(200, {imageID: uuid});
                 return next();
             }).catch((err: any) => {
