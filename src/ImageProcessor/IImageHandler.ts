@@ -27,4 +27,6 @@
      searchImages(): Promise<ImageData[]>;
 
      searchImage(id: string) : Promise<ImageData>;
+
+     fetchTags(filePath: string): Promise<string[]>;
  }

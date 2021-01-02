@@ -64,7 +64,7 @@ export default class Server {
                 // default maxSize is 10mb
                 that.rest.use(restify.plugins.bodyParser());
                 that.rest.use(restJWT(jwtConfig.jwt).unless({
-                    path: ['/login', '/echo/:msg']
+                    path: ['/login', '/test']
                 }));
                 that.rest.use(
                     function crossOrigin(req, res, next) {
@@ -73,8 +73,7 @@ export default class Server {
                         return next();
                     });
                 // Test endpoint
-                // http://localhost:1234/echo/hello
-                that.rest.get("/echo/:msg", Server.echo);
+                // http://localhost:1234/test
                 that.rest.get("/test", (req: restify.Request, res: restify.Response, next: restify.Next) => {
                     console.log("HEE");
                     res.send(200);
@@ -93,8 +92,8 @@ export default class Server {
                 });
 
                 that.rest.post("/imageTags",
-                (req: restify.Request, res: restify.Response, next: restify.Next) => {
-                Server.fetchTags(req, res, next);
+                    (req: restify.Request, res: restify.Response, next: restify.Next) => {
+                    Server.fetchTags(req, res, next, that.imageHandler);
             });
 
                 that.rest.listen(that.port, function () {
@@ -115,18 +114,6 @@ export default class Server {
         });
     }
 
-    private static echo(req: restify.Request, res: restify.Response, next: restify.Next) {
-        Log.trace("Server::echo(..) - params: " + JSON.stringify(req.params));
-        try {
-            const response = Server.performEcho(req.params.msg);
-            Log.info("Server::echo(..) - responding " + 200);
-            res.json(200, {result: response});
-        } catch (err) {
-            Log.error("Server::echo(..) - responding 400");
-            res.json(400, {error: err});
-        }
-        return next();
-    }
 
     // if I were to implement this pratically, function would make the call to some 
     // database, retrieve credentials, check if valid etc...
@@ -152,11 +139,22 @@ export default class Server {
         return next();
     }
 
-    private static fetchTags(req: restify.Request, res: restify.Response, next: restify.Next): string[] {
-        return [];
+    private static fetchTags(req: restify.Request, res: restify.Response, next: restify.Next, imageHandler: ImageHandler) {
+        const errorJSON = Server.dataValidation(req);
+        if (errorJSON.code !== null) {
+            res.json(errorJSON.code, {error: errorJSON.error});
+            return next();
+        } else {
+            return imageHandler.fetchTags(req.files.image.path).then((tags: string[]) => {
+                res.json(200, {imageID: tags});
+                return next();
+            }).catch((err: any) => {
+                res.json(400, {err: err});
+                return next();
+            })
+        }
     }
-
-
+    
     // A lot of these checks should be done at the UI level, but reinforcing here in case it isn't.
     private static dataValidation(req: restify.Request): any {
         const errorJSON: any = {
@@ -177,7 +175,7 @@ export default class Server {
             errorJSON.error = "Maximum of 3 tags allowed per picture"
         } else {
             const image = req.files.image;
-            if (!image.type.includes("image/")) {
+            if (!image.type.startsWith("image/")) {
                 errorJSON.code = 400;
                 errorJSON.error = "Only images are supported";
             }
@@ -210,14 +208,6 @@ export default class Server {
                 res.json(400, {err: err});
                 return next();
             })
-        }
-    }
-
-    private static performEcho(msg: string): string {
-        if (typeof msg !== "undefined" && msg !== null) {
-            return `${msg}...${msg}`;
-        } else {
-            return "Message not provided";
         }
     }
 }

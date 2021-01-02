@@ -8,8 +8,11 @@
 
 const fs = require('fs-extra');
 
-const rawData = fs.readFileSync('config.json');
-const parsedData = JSON.parse(rawData);
-parsedData["jwt"]["secret"] = process.env.TEST;
-const readyData = JSON.stringify(parsedData);
+const rawData = {
+    jwt: {
+        secret: process.env.JWTSECRET
+    }
+};
+
+const readyData = JSON.stringify(rawData);
 fs.writeFileSync('config.json', readyData);
