@@ -4,10 +4,9 @@
  * (ideas include using ML library to generate tags), or different types of searches (by date/user/tags).
  */
 
- export interface ImageData {
+ export interface S3ImageData {
     id: number;
-    user: number;
-    date: Date;
+    lastModified: string;
     tags: string[];
     imageURL: string;
  }
@@ -19,14 +18,13 @@
       * @param tags 
       * @param userID
       * 
-      * Goal is to upload image to S3 using user info to enable quick retrieval
+      * Goal is to upload image to S3 because cheap and easy/fast to access
       */
      addImage(userID: string, filePath: string, fileExt: string, tags: string[]): Promise<string>;
 
-     // admin vs non admin (your own pics vs all pics)
-     searchImages(): Promise<ImageData[]>;
-
-     searchImage(id: string) : Promise<ImageData>;
+     getImagesByTag(userID: string, tag: string) : Promise<S3ImageData[]>;
+     
+     getImagesByUserId(userID: string) : Promise<S3ImageData[]>;
 
      fetchTags(filePath: string): Promise<string[]>;
  }

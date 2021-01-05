@@ -1,10 +1,10 @@
-import fs = require("fs-extra");
 import restify = require("restify");
 import Log from "./Util";
 
 import jwtConfig from "../config.json"
 import jwt = require('jsonwebtoken');
 import restJWT = require('restify-jwt-community');
+import { S3ImageData } from "./ImageProcessor/IImageHandler";
 import ImageHandler from "./ImageProcessor/ImageHandler";
 
 
@@ -80,6 +80,10 @@ export default class Server {
                     return next();
                 });
 
+                that.rest.get("/images", (req: restify.Request, res: restify.Response, next: restify.Next) => {
+                    Server.getUserImages(req, res, next, that.imageHandler);
+                })
+
                 // the bearer token returned from this endpoint must be used in Authorization header for all other endpoints
                 // valid for 10 minutes
                 that.rest.post("/login" , (req: restify.Request, res: restify.Response, next: restify.Next) => {
@@ -123,17 +127,17 @@ export default class Server {
     private static authenticate(req: restify.Request, res: restify.Response, next: restify.Next, usernameSet: Set<String>) {
         const { username, admin } = req.body;
         if (username === null || username === undefined || username.length > 15 || usernameSet.has(username)) {
-            res.json(400, "Username entered invalid")
+            res.json(400, "Username entered invalid or already used");
         } else {
             // using Date.now()
             // inspired by: https://stackoverflow.com/questions/8012002/create-a-unique-number-with-javascript-time
             const uniqueID = Date.now();
             const data = { userID: uniqueID, name: username, admin: admin }
             const token: any = jwt.sign(data, jwtConfig.jwt.secret, {
-                expiresIn: "10m"
+                expiresIn: "60m"
             });
             usernameSet.add(username);
-            Log.info(`Server::authenticate - Authenticated user: ${username}`);
+            Log.info(`Server::authenticate - Authenticated user: ${username} for 60 minutes`);
             res.json(200, { authToken: token });
     }
         return next();
@@ -183,21 +187,63 @@ export default class Server {
         return errorJSON;
     }
 
+    private static getUserImagesByTag(req: restify.Request, res: restify.Response, next: restify.Next, imageHandler: ImageHandler) {
+        // Do type checks, multiform validation before sending of to ImageHandler.
+        // when function returns res.send(uuid) of picID,
+        const token: string = req.header('Authorization').split(' ')[1];
+        const userInfo: any = jwt.decode(token);
+        const userID: any = userInfo.userID;
+        Log.info(`Server::Fetching Images from user by specific tag:`);
+        Log.trace(userInfo);
+
+        return imageHandler.getImagesByTag(userID, req.query.tag).then((data: S3ImageData[]) => {
+            res.json(200, data);
+            return next();
+        }).catch((err: any) => {
+            res.json(400, {err: err});
+            return next();
+        });
+    }
+    
+    private static getUserImages(req: restify.Request, res: restify.Response, next: restify.Next, imageHandler: ImageHandler) {
+        // Do type checks, multiform validation before sending of to ImageHandler.
+        // when function returns res.send(uuid) of picID,
+        const token: string = req.header('Authorization').split(' ')[1];
+        const userInfo: any = jwt.decode(token);
+        const userID: any = userInfo.userID;
+        Log.info(`Server::Fetching Images from user:`);
+        Log.trace(userInfo);
+
+        return imageHandler.getImagesByUserId(userID).then((data: S3ImageData[]) => {
+            res.json(200, data);
+            Log.trace("DONETDFd")
+            return next();
+        }).catch((err: any) => {
+            Log.trace(err)
+            res.json(400, {err: err});
+            return next();
+        });
+    }
+
     private static uploadImage(req: restify.Request, res: restify.Response, next: restify.Next, imageHandler: ImageHandler) {
         // Do type checks, multiform validation before sending of to ImageHandler.
         // when function returns res.send(uuid) of picID,
+        if (req.body.tags === undefined || req.body.tags.split(',') < 3 ||  req.body.tags.split(',') > 3) {
+            res.json(400, {error: "Please make sure you have entered 3 tags that describe the picture."});
+            return next();
+        }
         const errorJSON = Server.dataValidation(req);
         if (errorJSON.code !== null) {
             res.json(errorJSON.code, {error: errorJSON.error});
             return next();
         } else {
-            const tags: any = req.body.tags !== undefined ? req.body.tags.split(',') : ["child", "dog", "happy"];
             // found from https://stackoverflow.com/questions/190852/how-can-i-get-file-extensions-with-javascript. handles edge cases well
             let fileExt: string = req.files.image.type;
             fileExt = "." + fileExt.substring(fileExt.lastIndexOf('/')+1, fileExt.length) || fileExt;
             const token: string = req.header('Authorization').split(' ')[1];
             const userInfo: any = jwt.decode(token);
             const userID: any = userInfo.userID;
+            const tags = req.body.tags.split(',');
             Log.info(`Server::Upload Image Request from user:`);
             Log.trace(userInfo);
 
