@@ -57,11 +57,9 @@ export default class Server {
         return new Promise(function (fulfill, reject) {
             try {
                 Log.info("Server::start() - start");
-                // populate Set with ids from database if this was not just being mocked
                 that.rest = restify.createServer({
                     name: "ImageRepo",
                 });
-                // default maxSize is 10mb
                 that.rest.use(restify.plugins.bodyParser());
                 that.rest.use(restJWT(jwtConfig.jwt).unless({
                     path: ['/login', '/test']
@@ -75,8 +73,7 @@ export default class Server {
                 // Test endpoint
                 // http://localhost:1234/test
                 that.rest.get("/test", (req: restify.Request, res: restify.Response, next: restify.Next) => {
-                    console.log("HEE");
-                    res.send(200);
+                    res.json(200, { message: "Hello wOrld!"});
                     return next();
                 });
 
@@ -89,7 +86,7 @@ export default class Server {
                 })
 
                 // the bearer token returned from this endpoint must be used in Authorization header for all other endpoints
-                // valid for 10 minutes
+                // valid for 1 hour
                 that.rest.post("/login" , (req: restify.Request, res: restify.Response, next: restify.Next) => {
                     Server.authenticate(req, res, next, that.usernameSet);
                 });
@@ -126,7 +123,7 @@ export default class Server {
     // if I were to implement this pratically, function would make the call to some 
     // database, retrieve credentials, check if valid etc...
     // The JWT needs to be stored inside an httpOnly cookie should not be accessible
-    //  from JavaScript running in the browser, will look into encryption as well.
+    //  from JavaScript running in the browser, will look into encryption as well. This is a mock authentication
     // https://blog.logrocket.com/jwt-authentication-best-practices/
     private static authenticate(req: restify.Request, res: restify.Response, next: restify.Next, usernameSet: Set<String>) {
         const { username, admin } = req.body;
@@ -158,7 +155,7 @@ export default class Server {
                 return next();
             }).catch((err: any) => {
                 Log.trace(err);
-                res.json(400, {err: err});
+                res.json(500, {err: err});
                 return next();
             })
         }
@@ -179,9 +176,9 @@ export default class Server {
         } else if (req.files === undefined || req.files.image === undefined) {
             errorJSON.code = 400;
             errorJSON.error = "Image not found in form data";
-        } else if (req.body.tags !== undefined && req.body.tags.split(',').length > 3) {
+        } else if (req.body.tags !== undefined && req.body.tags.split(',').length > 3 || req.body.tags.split(',').length < 3) {
             errorJSON.code = 400;
-            errorJSON.error = "Maximum of 3 tags allowed per picture"
+            errorJSON.error = "Please make sure you have entered 3 tags that describe the picture.";
         } else {
             const image = req.files.image;
             if (!image.type.startsWith("image/")) {
@@ -193,27 +190,22 @@ export default class Server {
     }
 
     private static getUserImagesByTag(req: restify.Request, res: restify.Response, next: restify.Next, imageHandler: ImageHandler) {
-        // Do type checks, multiform validation before sending of to ImageHandler.
-        // when function returns res.send(uuid) of picID,
         const token: string = req.header('Authorization').split(' ')[1];
         const userInfo: any = jwt.decode(token);
         const userID: any = userInfo.userID;
         Log.info(`Server::Fetching Images from user by specific tag:`);
-        Log.trace(userInfo);
-        Log.trace(req.params)
+        // Probably add some tag checks (ie no special characters etc)
         return imageHandler.getImagesByTag(userID, req.params.tag).then((data: S3ImageData[]) => {
             res.json(200, data);
             return next();
         }).catch((err: any) => {
             Log.trace(err);
-            res.json(400, {err: err});
+            res.json(500, {err: err});
             return next();
         });
     }
     
     private static getUserImages(req: restify.Request, res: restify.Response, next: restify.Next, imageHandler: ImageHandler) {
-        // Do type checks, multiform validation before sending of to ImageHandler.
-        // when function returns res.send(uuid) of picID,
         const token: string = req.header('Authorization').split(' ')[1];
         const userInfo: any = jwt.decode(token);
         const userID: any = userInfo.userID;
@@ -222,22 +214,15 @@ export default class Server {
 
         return imageHandler.getImagesByUserId(userID).then((data: S3ImageData[]) => {
             res.json(200, data);
-            Log.trace("DONETDFd")
             return next();
         }).catch((err: any) => {
             Log.trace(err);
-            res.json(400, {err: err});
+            res.json(500, {err: err});
             return next();
         });
     }
 
     private static uploadImage(req: restify.Request, res: restify.Response, next: restify.Next, imageHandler: ImageHandler) {
-        // Do type checks, multiform validation before sending of to ImageHandler.
-        // when function returns res.send(uuid) of picID,
-        if (req.body.tags === undefined || req.body.tags.split(',') < 3 ||  req.body.tags.split(',') > 3) {
-            res.json(400, {error: "Please make sure you have entered 3 tags that describe the picture."});
-            return next();
-        }
         const errorJSON = Server.dataValidation(req);
         if (errorJSON.code !== null) {
             res.json(errorJSON.code, {error: errorJSON.error});
@@ -258,7 +243,7 @@ export default class Server {
                 return next();
             }).catch((err: any) => {
                 Log.trace(err);
-                res.json(400, {err: err});
+                res.json(500, {err: err});
                 return next();
             })
         }

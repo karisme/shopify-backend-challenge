@@ -22,9 +22,29 @@
       */
      addImage(userID: string, filePath: string, fileExt: string, tags: string[]): Promise<string>;
 
+     /**
+      * 
+      * @param userID 
+      * @param tag 
+      * 
+      * Gets images from userID, then filters based on whether metadata has the tag
+      */
      getImagesByTag(userID: string, tag: string) : Promise<S3ImageData[]>;
      
+     /**
+      * 
+      * @param userID 
+      * 
+      * Leverages the folder organization in S3, gets all of user's images via userID
+      */
      getImagesByUserId(userID: string) : Promise<S3ImageData[]>;
 
+     /**
+      * 
+      * @param filePath 
+      * 
+      * This function makes use of the EveryPixel API, uses ML to create a list of 
+      * descriptors for a given image, each with a percentage of certainty.
+      */
      fetchTags(filePath: string): Promise<string[]>;
  }

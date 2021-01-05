@@ -47,12 +47,6 @@ export default class ImageHandler implements IImageHandler {
     }
 
 
-    /**
-     * If this was the priority operation, I would look into storing into S3 differently
-     * @param userID 
-     * @param tag 
-     */
-
     public getImagesByTag(userID: string, tag: string) : Promise<S3ImageData[]> {
         // get images from user, then check, since 3 its constant, if this was more than a few thousand pictures,
         // would have to look into (learn how to use) elastic search
