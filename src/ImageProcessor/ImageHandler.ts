@@ -60,14 +60,14 @@ export default class ImageHandler implements IImageHandler {
             const matchingRecords: S3ImageData[] = [];
             return this.getImagesByUserId(userID).then((data: any[]) => {
                 for (let record of data) {
-                    if (record.tags.contains(tag)) {
+                    if (record.tags.includes(tag)) {
                         matchingRecords.push(record);
                     }
                 }
                 if (matchingRecords.length > 0) {
                     return resolve(matchingRecords);
                 } else {
-                    return reject("No images saved under this user, contain the specified tag");
+                    return reject("No images saved under this user, contain the specified tag (perhaps extraneous '/'");
                 }
             }).catch((err) => {
                 return reject(err);
@@ -104,10 +104,8 @@ export default class ImageHandler implements IImageHandler {
                 }
                 return Promise.all(allRecordsPromises).then((data: any[]) => {
                     const allFormattedRecords: S3ImageData[] = this.createImageData(data);
-                    Log.trace("HEEEE");
                     return resolve(allFormattedRecords);
                 }).catch((err: any) => {
-                    Log.trace(err)
                     return reject(err);
                 });
             });

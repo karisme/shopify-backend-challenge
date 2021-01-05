@@ -84,6 +84,10 @@ export default class Server {
                     Server.getUserImages(req, res, next, that.imageHandler);
                 })
 
+                that.rest.get("/images/:tag", (req: restify.Request, res: restify.Response, next: restify.Next) => {
+                    Server.getUserImagesByTag(req, res, next, that.imageHandler);
+                })
+
                 // the bearer token returned from this endpoint must be used in Authorization header for all other endpoints
                 // valid for 10 minutes
                 that.rest.post("/login" , (req: restify.Request, res: restify.Response, next: restify.Next) => {
@@ -153,6 +157,7 @@ export default class Server {
                 res.json(200, {imageID: tags});
                 return next();
             }).catch((err: any) => {
+                Log.trace(err);
                 res.json(400, {err: err});
                 return next();
             })
@@ -195,11 +200,12 @@ export default class Server {
         const userID: any = userInfo.userID;
         Log.info(`Server::Fetching Images from user by specific tag:`);
         Log.trace(userInfo);
-
-        return imageHandler.getImagesByTag(userID, req.query.tag).then((data: S3ImageData[]) => {
+        Log.trace(req.params)
+        return imageHandler.getImagesByTag(userID, req.params.tag).then((data: S3ImageData[]) => {
             res.json(200, data);
             return next();
         }).catch((err: any) => {
+            Log.trace(err);
             res.json(400, {err: err});
             return next();
         });
@@ -219,7 +225,7 @@ export default class Server {
             Log.trace("DONETDFd")
             return next();
         }).catch((err: any) => {
-            Log.trace(err)
+            Log.trace(err);
             res.json(400, {err: err});
             return next();
         });
@@ -251,6 +257,7 @@ export default class Server {
                 res.json(200, {imageID: uuid});
                 return next();
             }).catch((err: any) => {
+                Log.trace(err);
                 res.json(400, {err: err});
                 return next();
             })
