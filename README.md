@@ -26,7 +26,9 @@ GET /test -> Test endpoint from early development stage, kept it for the lols
 ```
 
 ```
-GET /images -> Retrieves a list of all the images uploaded by the current user. Because I used JWT tokens for authentication, i can retrieve all the userInfo from the Authorization Header. The JSON returned is a list object under the S3ImageData type:
+GET /images -> Retrieves a list of all the images uploaded by the current user. 
+Because I used JWT tokens for authentication, i can retrieve all the userInfo from the Authorization Header. 
+The JSON returned is a list object under the S3ImageData type:
 
 S3ImageData {
     id: unique ID of the resource in S3
@@ -37,21 +39,37 @@ S3ImageData {
 ```
 
 ```
-GET /images/tag -> Same as above except client can specify a tag and images will be filtered, retunring only the ones that contain that tag.
+GET /images/tag -> Same as above except client can specify a tag and 
+images will be filtered, retunring only the ones that contain that tag.
 ```
 
 ```
-POST /login -> This is the endpoint that client will need to autheticate with, returns a authorization token needs to be used with all other endpoints. User info is encrypted inside this token (thank you JWT). This was not the focus of the implementation and as such there are several limitations with this approach, (namely security and logging in after token expires). Consider using DB to store credentials.
+POST /login -> This is the endpoint that client will need to autheticate with, 
+returns a authorization token needs to be used with all other endpoints. 
+User info is encrypted inside this token (thank you JWT). 
+This was not the focus of the implementation and as such there are several 
+imitations with this approach, (namely security and logging in after token expires). 
+Consider using DB to store credentials.
 ```
 
 ```
-POST /image -> This is the endpoint client can use to upload an image. Request must be made using multipart/form-data, 'image' key must have file binary and 'tag' key must have 3 tags seperated by commas. File size less than 15mb.
+POST /image -> This is the endpoint client can use to upload an image. 
+Request must be made using multipart/form-data, 'image' key must have file
+ binary and 'tag' key must have 3 tags seperated by commas. File size less than 15mb.
 ```
 
 ```
-POST /imageTags -> This is the endpoint client can use retrieve tags for a given image. I created this endpoint because I can imagine a userflow in which a user picks an image to upload, this endpoint is called offering the three tags with the highest percentage of certainty, user either confirms or modifies the tags, then calls endpoint above to upload picture (also wanted to try EveryPixel's API looked cool).
+POST /imageTags -> This is the endpoint client can use retrieve tags for a given image. 
+I created this endpoint because I can imagine a userflow in which a user picks an image 
+to upload, this endpoint is called offering the three tags with the highest percentage 
+of certainty, user either confirms or modifies the tags, then calls endpoint above to 
+upload picture (also wanted to try EveryPixel's API looked cool).
 
-Initially had this as part of the original image upload endpoint, but there is no guarantee that A) it is accurate, B) it is functional. Opted to leave it to the user to specify.
+Initially had this as part of the original image upload endpoint, but there is no 
+guarantee that A) it is accurate, B) it is functional.
+Opted to leave it to the user to specify.
 ```
 
-The so-called "business logic" is handled within ImageHandler and is abstracted away from the Server class. Reference the interface under the ImageProcessor folder for brief overview.
+The so-called "business logic" is handled within ImageHandler and is abstracted away 
+from the Server class. 
+Reference the interface under the ImageProcessor folder for brief overview.
