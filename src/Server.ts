@@ -193,7 +193,7 @@ export default class Server {
         const token: string = req.header('Authorization').split(' ')[1];
         const userInfo: any = jwt.decode(token);
         const userID: any = userInfo.userID;
-        Log.info(`Server::Fetching Images from user by specific tag:`);
+        Log.info(`Server::Fetching Images from user by specific tag: ${req.params.tag}`);
         // Probably add some tag checks (ie no special characters etc)
         return imageHandler.getImagesByTag(userID, req.params.tag).then((data: S3ImageData[]) => {
             res.json(200, data);
